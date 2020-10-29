@@ -1,4 +1,4 @@
-#zabbix告警消息推送到企业微信脚本
+# zabbix告警消息推送到企业微信脚本
 
 参数:
 1. 请填写{ALERT.SUBJECT}:zabbix告警消息subject
