@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"time"
 )
 
 type Token struct {
@@ -47,8 +50,8 @@ const (
 )
 
 // 发送企业微信text消息
-func PostText(corpid string, corpsecret string, topartys string, agentId int32, content string) {
-	token := GetToken(corpid, corpsecret)
+func PostText(corpid string, corpsecret string, topartys string, agentId int32, content string, client *http.Client) {
+	token := GetToken(corpid, corpsecret, client)
 	msg := getTextJsonMsg(content, topartys, agentId)
 	jsonByte, err := json.Marshal(msg)
 	if err != nil {
@@ -62,12 +65,13 @@ func PostText(corpid string, corpsecret string, topartys string, agentId int32, 
 		os.Exit(1)
 	}
 	url := POST_TEXT_MSG + "?access_token=" + token
-	resp, err := http.Post(url, "application/json", buffer)
+	resp, err := client.Post(url, "application/json", buffer)
 	if err != nil {
 		fmt.Printf("post text message failed , err:%v \n", err)
 		os.Exit(1)
 	}
 	responseBody, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
 		fmt.Printf("read body failed , err:%v \n", err)
 		os.Exit(1)
@@ -77,7 +81,7 @@ func PostText(corpid string, corpsecret string, topartys string, agentId int32, 
 		os.Exit(1)
 	}
 	var result WeComTextMsgResult
-	err = json.Unmarshal(responseBody, result)
+	err = json.Unmarshal(responseBody, &result)
 	if responseBody == nil || len(responseBody) == 0 {
 		fmt.Printf("body json format failed,jsonStr:%s, err:%v \n", string(responseBody), err)
 		os.Exit(1)
@@ -85,6 +89,33 @@ func PostText(corpid string, corpsecret string, topartys string, agentId int32, 
 	if result.Errmsg != "ok" {
 		fmt.Printf("response not ok !,err:%v \n", err)
 		os.Exit(1)
+	}
+}
+
+func GetHttpClient(proxyAddr string) *http.Client {
+	if proxyAddr == "" {
+		return http.DefaultClient
+	}
+	proxy, err := url.Parse(proxyAddr)
+	if err != nil {
+		return nil
+	}
+	netTransport := &http.Transport{
+		//Proxy: http.ProxyFromEnvironment,
+		Proxy: http.ProxyURL(proxy),
+		Dial: func(netw, addr string) (net.Conn, error) {
+			c, err := net.DialTimeout(netw, addr, time.Second*time.Duration(10))
+			if err != nil {
+				return nil, err
+			}
+			return c, nil
+		},
+		MaxIdleConnsPerHost:   10,                             //每个host最大空闲连接
+		ResponseHeaderTimeout: time.Second * time.Duration(5), //数据收发5秒超时
+	}
+	return &http.Client{
+		Timeout:   time.Second * 10,
+		Transport: netTransport,
 	}
 }
 
@@ -110,17 +141,18 @@ func getTextJsonMsg(contentString string, topartys string, agentId int32) WeComT
 }
 
 // 获取企业微信某应用的token
-func GetToken(corpid string, corpsecret string) string {
+func GetToken(corpid string, corpsecret string, client *http.Client) string {
 	url := GET_TOKEN + "?" +
 		"corpid=" + corpid +
 		"&corpsecret=" + corpsecret
 
-	resp, err := http.Get(url)
+	resp, err := client.Get(url)
 	if err != nil {
 		fmt.Printf("get token failed , err:%v \n", err)
 		os.Exit(1)
 	}
 	bytes, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
 		fmt.Printf("get token read body failed , err:%v \n", err)
 		os.Exit(1)

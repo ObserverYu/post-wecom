@@ -8,20 +8,41 @@ import (
 )
 
 func main() {
-	subject := os.Args[1]
-	message := os.Args[2]
-	corpid := os.Args[3]
-	corpsecret := os.Args[4]
-	topartysString := os.Args[5]
-	agentIdStr := os.Args[6]
+	var subject,
+		message,
+		corpid,
+		corpsecret,
+		topartysString,
+		agentIdStr,
+		proxyAddr string
+	for i, arg := range os.Args {
+		switch i {
+		case 1:
+			subject = arg
+		case 2:
+			message = arg
+		case 3:
+			corpid = arg
+		case 4:
+			corpsecret = arg
+		case 5:
+			topartysString = arg
+		case 6:
+			agentIdStr = arg
+		case 7:
+			proxyAddr = arg
+		}
+	}
 	agentId, _ := strconv.ParseInt(agentIdStr, 10, 32)
 	agentId32 := int32(agentId)
 	content := subject + "\n" + message
+	client := post.GetHttpClient(proxyAddr)
 	post.PostText(corpid,
 		corpsecret,
 		topartysString,
 		agentId32,
-		content)
+		content,
+		client)
 	fmt.Println("脚本执行完毕")
 
 }
